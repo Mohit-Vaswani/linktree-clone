@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 import ImageUploading, { ImageListType } from "react-images-uploading"
 import supabase from "@/utils/supabaseClient"
 import Image from "next/image"
+import defaultImage from "/assets/11.png"
 
 type Link = {
   title: string,
@@ -16,6 +17,9 @@ export default function Home() {
   const [url, setUrl] = useState<string | undefined>();
   const [links, setLinks] = useState<Link[]>();
   const [images, setImages] = useState<ImageListType>([]);
+  const [profilePictureUrl, setProfilePictureUrl] = useState<string | undefined>();
+  const [userImageLoaded, setUserImageLoaded] = useState<boolean>(false);
+
   const onChange = (imageList: ImageListType) => {
     setImages(imageList);
   }
@@ -51,6 +55,32 @@ export default function Home() {
       getLinks();
     }
   }, [userId])
+
+  useEffect(() => {
+    const getUser = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("users")
+          .select("profile_picture_url")
+          .eq("id", userId);
+          
+        if (error) throw error;
+        const profilePictureUrl = data[0]?.profile_picture_url; // Use optional chaining to avoid errors
+        
+        setProfilePictureUrl(profilePictureUrl);
+        setUserImageLoaded(true);
+        
+        console.log("profilePictureUrl inside useEffect:", profilePictureUrl); // Log the value here
+      } catch (error) {
+        console.error("Error fetching profile picture:", error);
+      }
+    };
+  
+    if (userId) {
+      getUser();
+    }
+  }, [userId]);
+  
 
   const addNewLink = async () => {
     try {
@@ -100,6 +130,16 @@ export default function Home() {
 
   return (
     <main className="flex justify-center flex-col h-screen items-center text-center pt-4">
+      {userImageLoaded ? (
+        profilePictureUrl ? (
+          <Image src={profilePictureUrl} alt="profile pic" width={100} height={100} />
+        ) : (
+          <Image src="/assets/11.png" alt="default pic" width={100} height={100} />
+        )
+      ) : (
+        // Display a loading indicator or placeholder while waiting for the user's image
+        <div>Loading...</div>
+      )}
       {links?.map((link: Link, index: number) => (
         <div
           onClick={(e) => {
