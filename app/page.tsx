@@ -1,113 +1,196 @@
-import Image from 'next/image'
+"use client"
+import { useEffect, useState } from "react"
+import ImageUploading, { ImageListType } from "react-images-uploading"
+import supabase from "@/utils/supabaseClient"
+import Image from "next/image"
+
+type Link = {
+  title: string,
+  link: string,
+}
 
 export default function Home() {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [userId, setUserId] = useState<string | undefined>();
+  const [title, setTitle] = useState<string | undefined>();
+  const [url, setUrl] = useState<string | undefined>();
+  const [links, setLinks] = useState<Link[]>();
+  const [images, setImages] = useState<ImageListType>([]);
+  const onChange = (imageList: ImageListType) => {
+    setImages(imageList);
+  }
+  const maxNumber = 69;
+
+  useEffect(() => {
+    const getUser = async () => {
+      const user = await supabase.auth.getUser();
+      console.log("user", user);
+      if (user) {
+        const userId = user.data.user?.id;
+        setIsAuthenticated(true);
+        setUserId(userId);
+      }
+    };
+
+    getUser();
+  }, [])
+
+  useEffect(() => {
+    const getLinks = async () => {
+      try {
+        const { data, error } = await supabase.from("links").select("title, link").eq("user_id", userId);
+
+        if (error) throw error;
+        setLinks(data);
+        console.log("data: ", data);
+      } catch (error) {
+        console.log("error: ", error);
+      }
+    }
+    if (userId) {
+      getLinks();
+    }
+  }, [userId])
+
+  const addNewLink = async () => {
+    try {
+      if (title && url && userId) {
+        const { data, error } = await supabase.from("links").insert({
+          title: title,
+          link: url,
+          user_id: userId
+        }).select()
+        if (error) throw error;
+        console.log("data: ", data);
+        if (links) {
+          setLinks([...data, ...links]);
+        }
+      }
+    }
+    catch (error) {
+      console.log("error: ", error);
+    }
+  }
+
+  const uploadProfilePicture = async () => {
+    try{
+      if(images.length > 0){
+        const image = images[0];
+        if (image.file && userId){
+          const {data, error} = await supabase.storage
+          .from("public_assets")
+          .upload(`${userId}/${image.file.name}`, image.file, {
+            upsert: true
+          });
+          if(error) throw error;
+          const resp = supabase.storage.from("public").getPublicUrl(data.path);
+          const publicUrl = resp.data.publicUrl;
+          const updateUserResponse = await supabase
+          .from("users")
+          .update({profile_picture_url: publicUrl})
+          .eq("id", userId);
+          if(updateUserResponse.error) throw error;
+        }
+      }
+    }
+    catch(error){
+      console.log("error", error);
+    }
+  }
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-between p-24">
-      <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm lg:flex">
-        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          Get started by editing&nbsp;
-          <code className="font-mono font-bold">app/page.tsx</code>
-        </p>
-        <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center bg-gradient-to-t from-white via-white dark:from-black dark:via-black lg:static lg:h-auto lg:w-auto lg:bg-none">
-          <a
-            className="pointer-events-none flex place-items-center gap-2 p-8 lg:pointer-events-auto lg:p-0"
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{' '}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className="dark:invert"
-              width={100}
-              height={24}
-              priority
+    <main className="flex justify-center flex-col h-screen items-center text-center pt-4">
+      {links?.map((link: Link, index: number) => (
+        <div
+          onClick={(e) => {
+            e.preventDefault();
+            window.location.href = link.link;
+          }}
+          key={index}
+          className="p-4 bg-indigo-400 w-4/12 text-white text-center mb-3 rounded-lg cursor-pointer"
+        >{link.title}</div>
+      ))}
+      {isAuthenticated &&
+        <>
+          <div className="my-3">
+            <label className="block text-gray-700 text-sm font-bold mb-2 mt-4" htmlFor="title">
+              Title
+            </label>
+            <input
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+              id="title"
+              name="title"
+              type="text"
+              placeholder="enter title"
+              onChange={(e) => setTitle(e.target.value)}
             />
-          </a>
-        </div>
-      </div>
+          </div>
+          <div className="my-3">
+            <label className="block text-gray-700 text-sm font-bold mb-2 mt-4" htmlFor="url">
+              URL
+            </label>
+            <input
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+              id="url"
+              name="url"
+              type="text"
+              placeholder="enter url"
+              onChange={(e) => setUrl(e.target.value)}
+            />
+          </div>
+          <button
+            onClick={addNewLink}
+            className="shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mt-4">
+            Add New Link
+          </button>
+          <div>
+            {/* {images.length > 0 && (
+              <Image src={images[0]["data_url"]} width={100} height={100} alt="profile pic" />
+            )} */}
 
-      <div className="relative flex place-items-center before:absolute before:h-[300px] before:w-[480px] before:-translate-x-1/2 before:rounded-full before:bg-gradient-radial before:from-white before:to-transparent before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-[240px] after:translate-x-1/3 after:bg-gradient-conic after:from-sky-200 after:via-blue-200 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700 before:dark:opacity-10 after:dark:from-sky-900 after:dark:via-[#0141ff] after:dark:opacity-40 before:lg:h-[360px] z-[-1]">
-        <Image
-          className="relative dark:drop-shadow-[0_0_0.3rem_#ffffff70] dark:invert"
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-      </div>
-
-      <div className="mb-32 grid text-center lg:max-w-5xl lg:w-full lg:mb-0 lg:grid-cols-4 lg:text-left">
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Docs{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Find in-depth information about Next.js features and API.
-          </p>
-        </a>
-
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Learn{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Learn about Next.js in an interactive course with&nbsp;quizzes!
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Templates{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Explore the Next.js 13 playground.
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Deploy{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
-      </div>
+            <ImageUploading
+              multiple
+              value={images}
+              onChange={onChange}
+              maxNumber={maxNumber}
+              dataURLKey="data_url"
+            >
+              {({
+                imageList,
+                onImageUpload,
+                onImageRemoveAll,
+                onImageUpdate,
+                onImageRemove,
+                isDragging,
+                dragProps,
+              }) => (
+                // write your building UI
+                <div className="upload__image-wrapper">
+                  <button
+                    style={isDragging ? { color: 'red' } : undefined}
+                    onClick={onImageUpload}
+                    {...dragProps}
+                  >
+                    Click or Drop here
+                  </button>
+                  &nbsp;
+                  <button onClick={onImageRemoveAll}>Remove all images</button>
+                  {imageList.map((image, index) => (
+                    <div key={index} className="image-item">
+                      <img src={image['data_url']} alt="" width="100" />
+                      <div className="image-item__btn-wrapper">
+                        <button onClick={() => onImageUpdate(index)}>Update</button>
+                        <button onClick={() => onImageRemove(index)}>Remove</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </ImageUploading>
+            <button onClick={uploadProfilePicture}>Upload Profile Pic</button>
+          </div>
+        </>
+      }
     </main>
   )
 }

@@ -1,38 +1,26 @@
 "use client"
 import supabase from '@/utils/supabaseClient';
 import React, { useState } from 'react'
+import { useRouter } from 'next/navigation';
 
 const page = () => {
     const [email, setEmail] = useState<string | undefined>();
     const [password, setPassword] = useState<string | undefined>();
+    const router = useRouter();
 
-    async function signUpWithEmail() {
+    async function signInWithEmail() {
         try{
             if(email && password){
-                const resp = await supabase.auth.signUp({
+                const resp = await supabase.auth.signInWithPassword({
                     email: email,
                     password: password,
                 });
-                if(resp.error) throw resp.error;
+                if(resp.error) throw resp.error; 
                 const userId = resp.data.user?.id;
-                if(userId){
-                    await createUser(userId);
-                }
                 console.log("userId ", userId)
+                router.push('/');
             }
         } catch {}
-    }
-
-    async function createUser(userId: string){
-        try{
-            const {error} = await supabase
-            .from("users")
-            .insert({id: userId});
-            if(error) throw error;
-        }
-        catch (error){
-            console.log("error: ", error)
-        }
     }
 
     return (
@@ -60,9 +48,9 @@ const page = () => {
                 />
                 <button 
                 type='button' 
-                onClick={signUpWithEmail}
+                onClick={signInWithEmail}
                 className='px-4 py-2 bg-blue-600 text-white rounded-lg mt-4'>
-                    sign up
+                    sign In
                 </button>
             </div>
         </div>
